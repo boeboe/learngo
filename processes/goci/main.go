@@ -5,7 +5,12 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"time"
 )
+
+type executer interface {
+	execute() (string, error)
+}
 
 func main() {
 	proj := flag.String("p", "", "project directory")
@@ -23,9 +28,11 @@ func run(proj string, out io.Writer) error {
 		return fmt.Errorf("project directory is required: %w", ErrValidation)
 	}
 
-	pipeline := make([]step, 2)
+	pipeline := make([]executer, 4)
 	pipeline[0] = newStep("go build", "go", "go build: SUCCESS", proj, []string{"build", ".", "errors"})
 	pipeline[1] = newStep("go test", "go", "go test: SUCCESS", proj, []string{"test", "-v"})
+	pipeline[2] = newExceptionStep("go fmt", "gofmt", "gofmt: SUCCESS", proj, []string{"-l", "."})
+	pipeline[3] = newTimeoutStep("git push", "git", "git push: SUCCESS", proj, []string{"push", "origin", "master"}, 10*time.Second)
 
 	for _, s := range pipeline {
 		msg, err := s.execute()
