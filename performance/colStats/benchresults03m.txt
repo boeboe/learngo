@@ -1,0 +1,6 @@
+goos: darwin
+goarch: arm64
+pkg: github.com/boeboe/learngo/performance/colStats
+BenchmarkRun-10    	      10	  61147300 ns/op	214895524 B/op	 2527092 allocs/op
+PASS
+ok  	github.com/boeboe/learngo/performance/colStats	0.790s

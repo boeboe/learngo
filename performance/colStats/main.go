@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"runtime"
+	"sync"
 )
 
 func main() {
@@ -40,26 +42,65 @@ func run(filenames []string, op string, column int, out io.Writer) error {
 	}
 
 	consolidate := make([]float64, 0)
-	// Loop through all the files adding their data to consolidate
-	for _, fname := range filenames {
-		// Open file for reading
-		f, err := os.Open(fname)
-		if err != nil {
-			return fmt.Errorf("cannot open file: %w", err)
-		}
 
-		// Parse the CSV file into a slice of float64 numbers
-		data, err := csv2float(f, column)
-		if err != nil {
-			return err
-		}
-		if err := f.Close(); err != nil {
-			return err
-		}
+	// Create the channels to receive results, errors and the done signal
+	resCh := make(chan []float64)
+	errCh := make(chan error)
+	doneCh := make(chan struct{}) // program does not allocate any mem for this channel (empty struct, only signal)
+	filesCh := make(chan string)
 
-		consolidate = append(consolidate, data...)
+	wg := sync.WaitGroup{}
+
+	// Loop through all the files sending them through the channel so each will be processed when a worker is available
+	go func() {
+		defer close(filesCh)
+		for _, fname := range filenames {
+			filesCh <- fname
+		}
+	}()
+
+	// Loop through all files and create a goroutine to process each one concurrently
+	for i := 0; i < runtime.NumCPU(); i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+
+			for filename := range filesCh {
+				// Open file for reading
+				f, err := os.Open(filename)
+				if err != nil {
+					errCh <- fmt.Errorf("cannot open file: %w", err)
+					return
+				}
+
+				// Parse the CSV file into a slice of float64 numbers
+				data, err := csv2float(f, column)
+				if err != nil {
+					errCh <- err
+				}
+				if err := f.Close(); err != nil {
+					errCh <- err
+				}
+
+				resCh <- data
+			}
+		}()
 	}
 
-	_, err := fmt.Fprintln(out, opFunc(consolidate))
-	return err
+	go func() {
+		wg.Wait()
+		close(doneCh)
+	}()
+
+	for {
+		select {
+		case err := <-errCh:
+			return err
+		case data := <-resCh:
+			consolidate = append(consolidate, data...)
+		case <-doneCh:
+			_, err := fmt.Fprintln(out, opFunc(consolidate))
+			return err
+		}
+	}
 }
