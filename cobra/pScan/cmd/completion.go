@@ -22,49 +22,57 @@ THE SOFTWARE.
 package cmd
 
 import (
-	"fmt"
 	"io"
 	"os"
 
-	"github.com/boeboe/learngo/cobra/pScan/scan"
 	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
 )
 
-// listCmd represents the list command
-var listCmd = &cobra.Command{
-	Use:     "list",
-	Aliases: []string{"l"},
-	Short:   "List hosts in the hosts list",
+// completionCmd represents the completion command
+var completionCmd = &cobra.Command{
+	Use:          "completion <bash|zsh>",
+	Short:        "Generate bash or zsh completion for pScan",
+	SilenceUsage: true,
+	Args:         cobra.MinimumNArgs(1),
+	Long: `To load your pScan completion run
+source <(pScan completion bash)
+source <(pScan completion zsh)
+
+To load pScan completion automatically on login, add this line to your .bashrc file:
+$ ~/.bashrc
+source <(pScan completion bash)
+$ ~/.zshrc
+source <(pScan completion zsh)
+`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		hostsFile := viper.GetString("hosts-file")
-		return listAction(os.Stdout, hostsFile, args)
+		return completionAction(os.Stdout, args)
 	},
 }
 
-func listAction(out io.Writer, hostsFile string, args []string) error {
-	hl := &scan.HostsList{}
-	if err := hl.Load(hostsFile); err != nil {
-		return err
+func completionAction(out io.Writer, args []string) error {
+	if len(args) == 0 {
+		return nil
 	}
-	for _, h := range hl.Hosts {
-		if _, err := fmt.Fprintln(out, h); err != nil {
-			return err
-		}
+	switch args[0] {
+	case "zsh":
+		return rootCmd.GenZshCompletion(out)
+	case "bash":
+		return rootCmd.GenBashCompletion(out)
+	default:
+		return nil
 	}
-	return nil
 }
 
 func init() {
-	hostsCmd.AddCommand(listCmd)
+	rootCmd.AddCommand(completionCmd)
 
 	// Here you will define your flags and configuration settings.
 
 	// Cobra supports Persistent Flags which will work for this command
 	// and all subcommands, e.g.:
-	// listCmd.PersistentFlags().String("foo", "", "A help for foo")
+	// completionCmd.PersistentFlags().String("foo", "", "A help for foo")
 
 	// Cobra supports local flags which will only run when this command
 	// is called directly, e.g.:
-	// listCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
+	// completionCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
 }

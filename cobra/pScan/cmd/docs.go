@@ -24,47 +24,51 @@ package cmd
 import (
 	"fmt"
 	"io"
+	"io/ioutil"
 	"os"
 
-	"github.com/boeboe/learngo/cobra/pScan/scan"
 	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
+	"github.com/spf13/cobra/doc"
 )
 
-// listCmd represents the list command
-var listCmd = &cobra.Command{
-	Use:     "list",
-	Aliases: []string{"l"},
-	Short:   "List hosts in the hosts list",
+// docsCmd represents the docs command
+var docsCmd = &cobra.Command{
+	Use:   "docs",
+	Short: "Generate documentation for pScan",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		hostsFile := viper.GetString("hosts-file")
-		return listAction(os.Stdout, hostsFile, args)
+		dir, err := cmd.Flags().GetString("dir")
+		if err != nil {
+			return err
+		}
+
+		if dir == "" {
+			if dir, err = ioutil.TempDir("", "pScan"); err != nil {
+				return err
+			}
+		}
+		return docsAction(os.Stdout, dir)
 	},
 }
 
-func listAction(out io.Writer, hostsFile string, args []string) error {
-	hl := &scan.HostsList{}
-	if err := hl.Load(hostsFile); err != nil {
+func docsAction(out io.Writer, dir string) error {
+	if err := doc.GenMarkdownTree(rootCmd, dir); err != nil {
 		return err
 	}
-	for _, h := range hl.Hosts {
-		if _, err := fmt.Fprintln(out, h); err != nil {
-			return err
-		}
-	}
-	return nil
+	_, err := fmt.Fprintf(out, "Documentation successfully created in %s\n", dir)
+	return err
 }
 
 func init() {
-	hostsCmd.AddCommand(listCmd)
+	rootCmd.AddCommand(docsCmd)
+	docsCmd.Flags().StringP("dir", "d", "", "Destination directory for docs")
 
 	// Here you will define your flags and configuration settings.
 
 	// Cobra supports Persistent Flags which will work for this command
 	// and all subcommands, e.g.:
-	// listCmd.PersistentFlags().String("foo", "", "A help for foo")
+	// docsCmd.PersistentFlags().String("foo", "", "A help for foo")
 
 	// Cobra supports local flags which will only run when this command
 	// is called directly, e.g.:
-	// listCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
+	// docsCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
 }
